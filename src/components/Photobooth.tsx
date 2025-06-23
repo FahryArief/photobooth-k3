@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef } from 'react'; // Menghapus useCallback
 import Webcam from "react-webcam";
-import { Camera, RotateCcw, Download } from 'lucide-react';
-
+import { Camera, Download, RotateCcw } from 'lucide-react';
+import Image from 'next/image'; // Mengimpor komponen Image
 
 const Photobooth = () => {
   const webcamRef = useRef<Webcam>(null);
@@ -66,7 +66,6 @@ const Photobooth = () => {
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx || images.length < 4) return;
 
-    // Atur ukuran canvas (misal 2x2 grid)
     const photoWidth = 640;
     const photoHeight = 480;
     canvas.width = photoWidth * 2;
@@ -82,11 +81,10 @@ const Photobooth = () => {
     ];
     
     images.forEach((src, index) => {
-      const img = new Image();
+      const img = new window.Image(); // Menggunakan window.Image untuk kejelasan di sisi klien
       img.onload = () => {
         ctx.drawImage(img, positions[index].x, positions[index].y, photoWidth, photoHeight);
         
-        // Setelah gambar terakhir dilukis, buat link download
         if(index === images.length - 1) {
             const link = document.createElement('a');
             link.download = 'photobooth-collage.jpeg';
@@ -153,9 +151,16 @@ const Photobooth = () => {
           <h3 className="text-2xl font-bold text-center mb-4 text-gray-800 dark:text-gray-200">Hasil Galeri</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-200 dark:bg-gray-800 rounded-lg">
             {images.map((src, index) => (
-              <img key={index} src={src} className="rounded-lg border-2 border-gray-400 shadow-md" />
+              <div key={index} className="relative w-full aspect-video">
+                <Image 
+                  src={src} 
+                  alt={`Hasil foto ke-${index + 1}`}
+                  layout="fill"
+                  objectFit="cover"
+                  className="rounded-lg border-2 border-gray-400 shadow-md" 
+                />
+              </div>
             ))}
-            {/* Placeholder untuk slot yang belum terisi */}
             {Array(4 - images.length).fill(0).map((_, index) => (
                 <div key={index} className="aspect-video bg-gray-300 dark:bg-gray-700 rounded-lg flex items-center justify-center">
                     <Camera className="h-10 w-10 text-gray-400 dark:text-gray-500" />
@@ -165,10 +170,10 @@ const Photobooth = () => {
         </div>
       )}
 
-      {/* Canvas disembunyikan, hanya untuk proses download */}
       <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
     </div>
   );
 };
 
 export default Photobooth;
+
