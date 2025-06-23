@@ -2,18 +2,26 @@ import { put } from '@vercel/blob';
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request): Promise<NextResponse> {
-  const { searchParams } = new URL(request.url);
+  // Baris `searchParams` yang tidak terpakai telah dihapus.
+  
   // Buat nama file unik, misalnya dengan timestamp
   const filename = `photobooth-${Date.now()}.jpeg`;
 
   // Dapatkan data gambar dari body request
   const blob = await request.blob();
   
-  // Unggah file ke Vercel Blob
-  const blobResult = await put(filename, blob, {
-    access: 'public',
-  });
+  try {
+    // Unggah file ke Vercel Blob
+    const blobResult = await put(filename, blob, {
+      access: 'public',
+    });
 
-  // Kembalikan URL gambar yang sudah diunggah
-  return NextResponse.json(blobResult);
+    // Kembalikan URL gambar yang sudah diunggah jika sukses
+    return NextResponse.json(blobResult);
+
+  } catch (error) {
+    // Tangani kemungkinan error saat upload
+    console.error("Error uploading to Vercel Blob:", error);
+    return NextResponse.json({ message: "Gagal mengunggah file." }, { status: 500 });
+  }
 }
