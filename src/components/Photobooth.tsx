@@ -14,6 +14,29 @@ const Photobooth = () => {
   const [isCapturing, setIsCapturing] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
 
+  // Fungsi untuk mengunggah gambar ke API Route
+  async function uploadImage(imageSrc: string) {
+    try {
+      // Ubah data base64 menjadi blob
+      const res = await fetch(imageSrc);
+      const blob = await res.blob();
+
+      // Kirim blob ke API Route kita
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: blob,
+      });
+      
+      const newBlob = await response.json();
+      console.log('Gambar berhasil diunggah:', newBlob.url);
+      // Anda bisa menambahkan notifikasi sukses di sini jika perlu
+      
+    } catch (error) {
+      console.error('Gagal mengunggah gambar:', error);
+      // Anda bisa menambahkan notifikasi error di sini jika perlu
+    }
+  }
+
   // Fungsi untuk memulai urutan pengambilan 4 foto
   const startCaptureSequence = () => {
     setImages([]); // Reset galeri
@@ -34,23 +57,27 @@ const Photobooth = () => {
         if (count === 0) {
           clearInterval(timer);
           
-          // Efek flash
           setIsFlashing(true);
           setTimeout(() => setIsFlashing(false), 100);
 
           const imageSrc = webcamRef.current?.getScreenshot();
-          if (imageSrc) {
-            setImages(prevImages => [...prevImages, imageSrc]);
-          }
-          captureCount++;
           
-          // Jeda sebelum foto berikutnya
+          // === PERUBAHAN DI SINI ===
+          if (imageSrc) {
+            // 1. Tambahkan gambar ke state lokal untuk ditampilkan di UI
+            setImages(prevImages => [...prevImages, imageSrc]);
+            // 2. Panggil fungsi upload untuk mengirim gambar ke server
+            uploadImage(imageSrc);
+          }
+          // ==========================
+
+          captureCount++;
           setTimeout(captureNext, 2000);
         }
       }, 1000);
     };
 
-    captureNext();
+    captureNext(); // Memulai loop pengambilan gambar
   };
 
   // Fungsi untuk mereset sesi
@@ -81,7 +108,7 @@ const Photobooth = () => {
     ];
     
     images.forEach((src, index) => {
-      const img = new window.Image(); // Menggunakan window.Image untuk kejelasan di sisi klien
+      const img = new window.Image();
       img.onload = () => {
         ctx.drawImage(img, positions[index].x, positions[index].y, photoWidth, photoHeight);
         
@@ -98,18 +125,20 @@ const Photobooth = () => {
 
   return (
     <div className="flex flex-col items-center p-4 min-h-screen bg-gray-100 dark:bg-gray-900">
-      <h1 className="text-3xl md:text-4xl font-bold my-4 text-center text-gray-800 dark:text-gray-200">
+      {/* Tambahkan peringatan privasi yang jelas */}
+      <div className="p-3 mb-4 text-sm text-yellow-800 rounded-lg bg-yellow-50 dark:bg-gray-800 dark:text-yellow-300" role="alert">
+        <span className="font-medium">Perhatian!</span> Dengan mengambil foto, Anda setuju bahwa gambar Anda akan disimpan. Mohon baca <a href="/privacy" className="font-bold underline">Kebijakan Privasi</a> kami.
+      </div>
+
+      <h1 className="text-3xl md:text-4xl font-bold my-2 text-center text-gray-800 dark:text-gray-200">
         Photobooth Kelompok 3
       </h1>
 
       <div className="relative w-full max-w-lg md:max-w-2xl border-4 border-gray-700 rounded-lg overflow-hidden shadow-lg bg-gray-900">
         {isFlashing && <div className="absolute inset-0 bg-white z-20"></div>}
         
-        {/* === PERUBAHAN DI SINI === */}
         {countdown !== null && countdown > 0 && (
-          // Latar belakang hitam transparan dihapus dari div ini
           <div className="absolute inset-0 flex items-center justify-center z-10">
-            {/* Ditambahkan drop-shadow-lg untuk keterbacaan teks */}
             <h2 className="text-9xl font-bold text-white animate-ping drop-shadow-lg">{countdown}</h2>
           </div>
         )}
