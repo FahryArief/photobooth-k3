@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useRef } from 'react'; // Menghapus useCallback
+import React, { useState, useRef } from 'react';
 import Webcam from "react-webcam";
 import { Camera, Download, RotateCcw } from 'lucide-react';
-import Image from 'next/image'; // Mengimpor komponen Image
+import Image from 'next/image';
 
 const Photobooth = () => {
   const webcamRef = useRef<Webcam>(null);
@@ -105,9 +105,12 @@ const Photobooth = () => {
       <div className="relative w-full max-w-lg md:max-w-2xl border-4 border-gray-700 rounded-lg overflow-hidden shadow-lg bg-gray-900">
         {isFlashing && <div className="absolute inset-0 bg-white z-20"></div>}
         
+        {/* === PERUBAHAN DI SINI === */}
         {countdown !== null && countdown > 0 && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 z-10">
-            <h2 className="text-9xl font-bold text-white animate-ping">{countdown}</h2>
+          // Latar belakang hitam transparan dihapus dari div ini
+          <div className="absolute inset-0 flex items-center justify-center z-10">
+            {/* Ditambahkan drop-shadow-lg untuk keterbacaan teks */}
+            <h2 className="text-9xl font-bold text-white animate-ping drop-shadow-lg">{countdown}</h2>
           </div>
         )}
         
@@ -176,4 +179,3 @@ const Photobooth = () => {
 };
 
 export default Photobooth;
-
