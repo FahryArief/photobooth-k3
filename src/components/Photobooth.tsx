@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import Webcam from "react-webcam";
-import { Camera, Download, RotateCcw, Sparkles } from 'lucide-react';
+import { Camera, Download, RotateCcw } from 'lucide-react';
 import Image from 'next/image';
 
 // === BAGIAN BARU: DEFINISI TEMPLATE KOLASE ===
