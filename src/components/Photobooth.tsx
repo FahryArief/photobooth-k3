@@ -1,61 +1,73 @@
 "use client";
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Webcam from "react-webcam";
 import { Camera, Download, RotateCcw } from 'lucide-react';
 import Image from 'next/image';
 
-// === BAGIAN BARU: DEFINISI TEMPLATE KOLASE ===
+// --- DATA STRUKTUR BARU & FLEKSIBEL ---
+
+// 1. Opsi Bingkai
+const frameOptions = [
+  { id: 'comic_strip', name: 'Komik Strip', src: '/frames/frame1.png' },
+  { id: 'wood', name: 'Komik Strip 2', src: '/frames/frame2.png' },
+  { id: 'party', name: 'Komik Strip 3', src: '/frames/frame3.png' },
+  { id: 'none', name: 'Tanpa Bingkai', src: '' }
+];
+
+// 2. Opsi Template Kolase dengan KOORDINAT RELATIF (%)
+// Ini memungkinkan satu template bekerja untuk banyak ukuran bingkai.
 const collageTemplates = [
-  { id: 'grid_2x2', name: 'Grid 2x2', canvasWidth: 1280, canvasHeight: 960, 
+  // Template ini dikalibrasi untuk frame1.png (3375x6000px)
+  // Anda bisa menyesuaikan nilai % ini agar pas.
+  { id: 'comic_strip_layout', name: 'Layout Komik', photoCount: 3,
     layout: [
-      { x: 0, y: 0, width: 640, height: 480 },
-      { x: 640, y: 0, width: 640, height: 480 },
-      { x: 0, y: 480, width: 640, height: 480 },
-      { x: 640, y: 480, width: 640, height: 480 },
+      { x: '7.5%', y: '5.5%', width: '85%', height: '26%' },
+      { x: '7.5%', y: '38%', width: '85%', height: '26%' },
+      { x: '7.5%', y: '69%', width: '85%', height: '26%' },
     ]
   },
-  { id: 'film_strip', name: 'Film Strip', canvasWidth: 640, canvasHeight: 1920,
+  { id: 'grid_2x2', name: 'Grid 2x2', photoCount: 4, cols: 2, rows: 2,
     layout: [
-      { x: 0, y: 0, width: 640, height: 480 },
-      { x: 0, y: 480, width: 640, height: 480 },
-      { x: 0, y: 960, width: 640, height: 480 },
-      { x: 0, y: 1440, width: 640, height: 480 },
+      { x: '5%', y: '5%', width: '44%', height: '44%' }, { x: '51%', y: '5%', width: '44%', height: '44%' },
+      { x: '5%', y: '51%', width: '44%', height: '44%' }, { x: '51%', y: '51%', width: '44%', height: '44%' },
     ]
   },
-   { id: 'feature', name: 'Feature', canvasWidth: 1280, canvasHeight: 960,
+  { id: 'film_strip_4', name: 'Film Strip (4)', photoCount: 4, cols: 1, rows: 4,
     layout: [
-      { x: 0, y: 0, width: 960, height: 960 }, // Gambar utama besar
-      { x: 960, y: 0, width: 320, height: 320 },
-      { x: 960, y: 320, width: 320, height: 320 },
-      { x: 960, y: 640, width: 320, height: 320 },
+        { x: '10%', y: '5%', width: '80%', height: '21%' }, { x: '10%', y: '28%', width: '80%', height: '21%' },
+        { x: '10%', y: '51%', width: '80%', height: '21%' }, { x: '10%', y: '74%', width: '80%', height: '21%' },
     ]
   }
 ];
-// ==========================================
 
 const Photobooth = () => {
   const webcamRef = useRef<Webcam>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<{ src: string; filter: string }[]>([]);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
-  
-  // === STATE BARU UNTUK FITUR TAMBAHAN ===
   const [activeFilter, setActiveFilter] = useState('filter-none');
-  const [activeTemplateId, setActiveTemplateId] = useState('grid_2x2');
-  // ======================================
+  const [activeFrameId, setActiveFrameId] = useState(frameOptions[0].id);
+  const [activeTemplateId, setActiveTemplateId] = useState(collageTemplates[0].id); // State untuk template
+  
+  const activeFilterRef = useRef(activeFilter);
+  useEffect(() => {
+    activeFilterRef.current = activeFilter;
+  }, [activeFilter]);
+
+  // Dapatkan template dan frame yang aktif secara terpisah
+  const activeFrame = frameOptions.find(f => f.id === activeFrameId) || frameOptions[0];
+  const activeTemplate = collageTemplates.find(t => t.id === activeTemplateId) || collageTemplates[0];
+  const photoCount = activeTemplate.photoCount;
 
   async function uploadImage(imageSrc: string) {
     try {
       const res = await fetch(imageSrc);
       const blob = await res.blob();
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: blob,
-      });
+      const response = await fetch('/api/upload', { method: 'POST', body: blob });
       const newBlob = await response.json();
       console.log('Gambar berhasil diunggah:', newBlob.url);
     } catch (error) {
@@ -64,26 +76,18 @@ const Photobooth = () => {
   }
 
   const startCaptureSequence = () => {
-    setImages([]);
-    setIsCapturing(true);
-    let captureCount = 0;
+    setImages([]); setIsCapturing(true); let captureCount = 0;
     const captureNext = () => {
-      if (captureCount >= 4) {
-        setIsCapturing(false);
-        return;
-      }
-      let count = 3;
-      setCountdown(count);
+      if (captureCount >= photoCount) { setIsCapturing(false); return; }
+      let count = 3; setCountdown(count);
       const timer = setInterval(() => {
-        count -= 1;
-        setCountdown(count > 0 ? count : null);
+        count -= 1; setCountdown(count > 0 ? count : null);
         if (count === 0) {
           clearInterval(timer);
-          setIsFlashing(true);
-          setTimeout(() => setIsFlashing(false), 100);
+          setIsFlashing(true); setTimeout(() => setIsFlashing(false), 100);
           const imageSrc = webcamRef.current?.getScreenshot();
           if (imageSrc) {
-            setImages(prevImages => [...prevImages, imageSrc]);
+            setImages(prevImages => [...prevImages, { src: imageSrc, filter: activeFilterRef.current }]);
             uploadImage(imageSrc);
           }
           captureCount++;
@@ -94,127 +98,151 @@ const Photobooth = () => {
     captureNext();
   };
 
-  const resetSession = () => {
-    setImages([]);
-    setIsCapturing(false);
-    setCountdown(null);
-  };
+  const resetSession = () => { setImages([]); setIsCapturing(false); setCountdown(null); };
   
-  // === FUNGSI DOWNLOAD DIMODIFIKASI ===
-  const downloadCollage = () => {
+  const getCssFilterValue = (className: string) => {
+    switch (className) {
+      case 'filter-grayscale': return 'grayscale(100%)';
+      case 'filter-sepia': return 'sepia(100%)';
+      case 'filter-invert': return 'invert(100%)';
+      default: return 'none';
+    }
+  };
+
+  const downloadCollage = async () => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
-    const selectedTemplate = collageTemplates.find(t => t.id === activeTemplateId);
+    if (!canvas || !ctx || images.length < photoCount || !activeTemplate) return;
 
-    if (!canvas || !ctx || images.length < 4 || !selectedTemplate) return;
+    const loadImage = (src: string): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
+        const img = new window.Image();
+        img.crossOrigin = "Anonymous";
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+    });
 
-    // Gunakan ukuran dari template
-    canvas.width = selectedTemplate.canvasWidth;
-    canvas.height = selectedTemplate.canvasHeight;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    images.forEach((src, index) => {
-      const img = new window.Image();
-      img.onload = () => {
-        // Gunakan layout dari template
-        const { x, y, width, height } = selectedTemplate.layout[index];
-        ctx.drawImage(img, x, y, width, height);
-        
-        if(index === images.length - 1) {
+    try {
+        const loadedPhotosData = await Promise.all(images.map(async (imgData) => ({
+            photo: await loadImage(imgData.src),
+            filter: imgData.filter
+        })));
+
+        const triggerDownload = () => {
             const link = document.createElement('a');
-            link.download = `photobooth-collage-${activeTemplateId}.jpeg`;
-            link.href = canvas.toDataURL('image/jpeg');
+            link.download = `photobooth-${activeFrameId}-${activeTemplateId}.jpeg`;
+            link.href = canvas.toDataURL('image/jpeg', 0.9);
             link.click();
         }
-      };
-      img.src = src;
-    });
+
+        if (activeFrame.src) {
+            const frameImage = await loadImage(activeFrame.src);
+            canvas.width = frameImage.width;
+            canvas.height = frameImage.height;
+            
+            // Latar belakang putih untuk jaga-jaga jika frame punya area transparan di tepinya
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // === PERBAIKAN: UBAH URUTAN GAMBAR ===
+            // 1. Gambar FOTO terlebih dahulu
+            loadedPhotosData.forEach(({ photo, filter }, index) => {
+                const layout = activeTemplate.layout[index];
+                const x = (parseFloat(layout.x) / 100) * frameImage.width;
+                const y = (parseFloat(layout.y) / 100) * frameImage.height;
+                const width = (parseFloat(layout.width) / 100) * frameImage.width;
+                const height = (parseFloat(layout.height) / 100) * frameImage.height;
+
+                ctx.save(); // Simpan state sebelum menerapkan filter
+                ctx.filter = getCssFilterValue(filter);
+                ctx.drawImage(photo, x, y, width, height);
+                ctx.restore(); // Kembalikan state, hapus filter untuk operasi selanjutnya
+            });
+
+            // 2. Gambar BINGKAI di atas foto
+            // Metode ini memerlukan bingkai dengan slot transparan agar berhasil
+            ctx.drawImage(frameImage, 0, 0);
+            // =====================================
+        } else {
+           const photoWidth = 640;
+           const photoHeight = 480;
+           const padding = 20;
+           
+           canvas.width = (photoWidth * activeTemplate.cols!) + (padding * (activeTemplate.cols! + 1));
+           canvas.height = (photoHeight * activeTemplate.rows!) + (padding * (activeTemplate.rows! + 1));
+
+           ctx.fillStyle = '#FFFFFF';
+           ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+           loadedPhotosData.forEach(({ photo, filter }, index) => {
+                const col = index % activeTemplate.cols!;
+                const row = Math.floor(index / activeTemplate.cols!);
+                const xPos = (col * photoWidth) + ((col + 1) * padding);
+                const yPos = (row * photoHeight) + ((row + 1) * padding);
+                ctx.filter = getCssFilterValue(filter);
+                ctx.drawImage(photo, xPos, yPos, photoWidth, photoHeight);
+                ctx.filter = 'none';
+           });
+        }
+        
+        setTimeout(triggerDownload, 100); 
+    } catch (error) {
+        console.error("Gagal membuat kolase:", error);
+        alert("Gagal membuat kolase. Pastikan semua gambar dan frame tersedia.");
+    }
   };
-  // ======================================
 
   return (
     <div className="flex flex-col items-center p-4 min-h-screen bg-gray-100 dark:bg-gray-900">
-      <div className="p-3 mb-4 text-sm text-yellow-800 rounded-lg bg-yellow-50 dark:bg-gray-800 dark:text-yellow-300" role="alert">
-        <span className="font-medium">Perhatian!</span> TAHAP PENGEMBANGAN, GABUT AJA NGETEST GEMINI AI
-      </div>
-
-      <h1 className="text-3xl md:text-4xl font-bold my-2 text-center text-gray-800 dark:text-gray-200">
-        Photobooth Kelompok 3
-      </h1>
-
-      <div className="relative w-full max-w-lg md:max-w-2xl border-4 border-gray-700 rounded-lg overflow-hidden shadow-lg bg-gray-900">
-        {isFlashing && <div className="absolute inset-0 bg-white z-20"></div>}
-        {countdown !== null && countdown > 0 && (
-          <div className="absolute inset-0 flex items-center justify-center z-10">
-            <h2 className="text-9xl font-bold text-white animate-ping drop-shadow-lg">{countdown}</h2>
-          </div>
-        )}
-        
-        {/* Menerapkan class filter ke Webcam */}
-        <Webcam
-          audio={false}
-          ref={webcamRef}
-          mirrored={true}
-          className={`w-full h-auto transition-all duration-300 ${activeFilter}`}
-          screenshotFormat="image/jpeg"
-          width={1280}
-          height={720}
-        />
-      </div>
-
-      {/* === UI KONTROL BARU UNTUK FILTER DAN TEMPLATE === */}
-      <div className='my-5 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md w-full max-w-lg md:max-w-2xl'>
-        <div className="mb-4">
-            <h3 className='font-bold text-lg mb-2 text-gray-700 dark:text-gray-200'>Pilih Filter:</h3>
-            <div className='flex flex-wrap gap-2'>
-                <button onClick={() => setActiveFilter('filter-none')} className={`px-3 py-1 text-sm rounded-full ${activeFilter === 'filter-none' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>Normal</button>
-                <button onClick={() => setActiveFilter('filter-grayscale')} className={`px-3 py-1 text-sm rounded-full ${activeFilter === 'filter-grayscale' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>Grayscale</button>
-                <button onClick={() => setActiveFilter('filter-sepia')} className={`px-3 py-1 text-sm rounded-full ${activeFilter === 'filter-sepia' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>Sepia</button>
-                <button onClick={() => setActiveFilter('filter-invert')} className={`px-3 py-1 text-sm rounded-full ${activeFilter === 'filter-invert' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>Invert</button>
+       <div className="p-3 mb-4 text-sm text-yellow-800 rounded-lg bg-yellow-50 dark:bg-gray-800 dark:text-yellow-300" role="alert"><span className="font-medium">Perhatian!</span> Dengan mengambil foto, Anda setuju bahwa gambar Anda akan disimpan. Mohon baca <a href="/privacy" className="font-bold underline">Kebijakan Privasi</a> kami.</div>
+       <h1 className="text-3xl md:text-4xl font-bold my-2 text-center text-gray-800 dark:text-gray-200">Photobooth Kelompok 3</h1>
+       <div className="relative w-full max-w-lg md:max-w-2xl border-4 border-gray-700 rounded-lg overflow-hidden shadow-lg bg-gray-900">{isFlashing && <div className="absolute inset-0 bg-white z-20"></div>}{countdown !== null && countdown > 0 && <div className="absolute inset-0 flex items-center justify-center z-10"><h2 className="text-9xl font-bold text-white animate-ping drop-shadow-lg">{countdown}</h2></div>}<Webcam audio={false} ref={webcamRef} mirrored={true} className={`w-full h-auto transition-all duration-300 ${activeFilter}`} screenshotFormat="image/jpeg" width={1280} height={720} /></div>
+       
+       {/* --- UI KONTROL DIPERBARUI --- */}
+       <div className='my-5 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md w-full max-w-lg md:max-w-2xl'>
+            <div className="mb-4">
+                <h3 className='font-bold text-lg mb-2 text-gray-700 dark:text-gray-200'>Pilih Filter:</h3>
+                <div className='flex flex-wrap gap-2'>
+                    <button onClick={() => setActiveFilter('filter-none')} className={`px-3 py-1 text-sm rounded-full ${activeFilter === 'filter-none' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>Normal</button>
+                    <button onClick={() => setActiveFilter('filter-grayscale')} className={`px-3 py-1 text-sm rounded-full ${activeFilter === 'filter-grayscale' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>Grayscale</button>
+                    <button onClick={() => setActiveFilter('filter-sepia')} className={`px-3 py-1 text-sm rounded-full ${activeFilter === 'filter-sepia' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>Sepia</button>
+                    <button onClick={() => setActiveFilter('filter-invert')} className={`px-3 py-1 text-sm rounded-full ${activeFilter === 'filter-invert' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>Invert</button>
+                </div>
+            </div>
+            {/* UI untuk memilih template kolase */}
+            <div className="mb-4">
+                <h3 className='font-bold text-lg mb-2 text-gray-700 dark:text-gray-200'>Pilih Layout Kolase:</h3>
+                <div className='flex flex-wrap gap-2'>
+                    {collageTemplates.map(template => (
+                        <button key={template.id} onClick={() => setActiveTemplateId(template.id)} className={`px-3 py-1 text-sm rounded-full ${activeTemplateId === template.id ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>{template.name}</button>
+                    ))}
+                </div>
+            </div>
+            {/* UI untuk memilih bingkai */}
+            <div>
+                <h3 className='font-bold text-lg mb-2 text-gray-700 dark:text-gray-200'>Pilih Bingkai:</h3>
+                <div className='flex flex-wrap gap-2'>
+                    {frameOptions.map(frame => (
+                        <button key={frame.id} onClick={() => setActiveFrameId(frame.id)} className={`rounded-md overflow-hidden border-2 transition-all ${activeFrameId === frame.id ? 'border-blue-600 scale-105' : 'border-transparent'}`}>
+                           {frame.src ? <Image src={frame.src} alt={frame.name} width={80} height={60} className="object-cover" /> : <div className="w-20 h-[60px] bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs">Tanpa Bingkai</div>}
+                        </button>
+                    ))}
+                </div>
             </div>
         </div>
-        <div>
-            <h3 className='font-bold text-lg mb-2 text-gray-700 dark:text-gray-200'>Pilih Template Kolase:</h3>
-            <div className='flex flex-wrap gap-2'>
-                {collageTemplates.map(template => (
-                    <button key={template.id} onClick={() => setActiveTemplateId(template.id)} className={`px-3 py-1 text-sm rounded-full ${activeTemplateId === template.id ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700'}`}>{template.name}</button>
-                ))}
-            </div>
-        </div>
-      </div>
-      {/* ================================================= */}
-
-      <div className="space-x-4">
-        {images.length < 4 ? (
-          <button onClick={startCaptureSequence} disabled={isCapturing} className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-bold rounded-full hover:bg-blue-700 transition-all transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed">
-            <Camera className="mr-2 h-5 w-5"/>
-            {isCapturing ? 'Mengambil Foto...' : 'Mulai Sesi (4x)'}
-          </button>
-        ) : (
-          <>
-            <button onClick={resetSession} className="inline-flex items-center px-6 py-3 bg-green-600 text-white font-bold rounded-full hover:bg-green-700 transition-transform transform hover:scale-105">
-                <RotateCcw className="mr-2 h-5 w-5" /> Ulangi Sesi
-            </button>
-            <button onClick={downloadCollage} className="inline-flex items-center px-6 py-3 bg-purple-600 text-white font-bold rounded-full hover:bg-purple-700 transition-transform transform hover:scale-105">
-                <Download className="mr-2 h-5 w-5" /> Download Collage
-            </button>
-          </>
-        )}
-      </div>
-
+       
+       <div className="space-x-4">{images.length < photoCount ? <button onClick={startCaptureSequence} disabled={isCapturing} className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-bold rounded-full hover:bg-blue-700 transition-all transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed"><Camera className="mr-2 h-5 w-5"/>{isCapturing ? `Mengambil Foto ${images.length + 1}/${photoCount}...` : `Mulai Sesi (${photoCount}x)`}</button> : <> <button onClick={resetSession} className="inline-flex items-center px-6 py-3 bg-green-600 text-white font-bold rounded-full hover:bg-green-700 transition-transform transform hover:scale-105"><RotateCcw className="mr-2 h-5 w-5" /> Ulangi Sesi</button><button onClick={downloadCollage} className="inline-flex items-center px-6 py-3 bg-purple-600 text-white font-bold rounded-full hover:bg-purple-700 transition-transform transform hover:scale-105"><Download className="mr-2 h-5 w-5" /> Download Collage</button></>}</div>
+      
       {images.length > 0 && (
         <div className="mt-8 w-full max-w-4xl">
-          <h3 className="text-2xl font-bold text-center mb-4 text-gray-800 dark:text-gray-200">Hasil Galeri</h3>
+          <h3 className="text-2xl font-bold text-center mb-4 text-gray-800 dark:text-gray-200">Hasil Galeri ({images.length}/{photoCount})</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-200 dark:bg-gray-800 rounded-lg">
-            {images.map((src, index) => (
+            {images.map((image, index) => (
               <div key={index} className="relative w-full aspect-video">
-                {/* Menerapkan class filter ke Gambar hasil */}
-                <Image src={src} alt={`Hasil foto ke-${index + 1}`} layout="fill" objectFit="cover" className={`rounded-lg border-2 border-gray-400 shadow-md transition-all duration-300 ${activeFilter}`} />
+                <Image src={image.src} alt={`Hasil foto ke-${index + 1}`} layout="fill" objectFit="cover" className={`rounded-lg border-2 border-gray-400 shadow-md transition-all duration-300 ${image.filter}`}/>
               </div>
             ))}
-            {Array(4 - images.length).fill(0).map((_, index) => (
-                <div key={index} className="aspect-video bg-gray-300 dark:bg-gray-700 rounded-lg flex items-center justify-center"><Camera className="h-10 w-10 text-gray-400 dark:text-gray-500" /></div>
-            ))}
+            {Array(photoCount - images.length).fill(0).map((_, index) => (<div key={index} className="aspect-video bg-gray-300 dark:bg-gray-700 rounded-lg flex items-center justify-center"><Camera className="h-10 w-10 text-gray-400 dark:text-gray-500" /></div>))}
           </div>
         </div>
       )}
